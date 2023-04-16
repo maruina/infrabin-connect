@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "go-infrabin.fullname" . }}
+  labels:
+    {{- include "go-infrabin.labels" . | nindent 4 }}
+spec:
+{{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      {{- include "go-infrabin.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+    {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      labels:
+        {{- include "go-infrabin.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "go-infrabin.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          command:
+            - /usr/local/bin/go-infrabin
+            - --grpc-port={{ .Values.args.gRPCPort }}
+            - --server-port={{ .Values.args.serverPort }}
+            - --prom-port={{ .Values.args.promPort }}
+            {{- if .Values.args.enableProxyEndpoint }}
+            - --enable-proxy-endpoint=true
+            {{- end }}
+            - --aws-metadata-endpoint={{ .Values.args.aWSMetadataEndpoint }}
+            - --drain-timeout={{ .Values.args.drainTimeout }}
+            - --max-delay={{ .Values.args.maxDelay }}
+            - --http-write-timeout={{ .Values.args.httpWriteTimeout }}
+            - --http-read-timeout={{ .Values.args.httpReadTimeout }}
+            - --http-idle-timeout={{ .Values.args.httpIdleTimeout }}
+            - --http-read-header-timeout={{ .Values.args.httpReadHeaderTimeout }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http-service
+              containerPort: {{ .Values.args.serverPort}}
+              protocol: TCP
+            - name: grpc-service
+              containerPort: {{ .Values.args.gRPCPort }}
+              protocol: TCP
+            - name: http-prom
+              containerPort: {{ .Values.args.promPort }}
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/grpc_health_probe", "-addr=:{{ .Values.args.gRPCPort }}"]
+            initialDelaySeconds: 10
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/grpc_health_probe", "-addr=:{{ .Values.args.gRPCPort }}"]
+            initialDelaySeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

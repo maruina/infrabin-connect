@@ -1,0 +1,16 @@
+changelog:
+  skip: true
+# Build customization
+builds:
+  - main: ./cmd/root.go
+    binary: go-infrabin
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+# Archive customization
+archives:
+  - format: tar.gz
